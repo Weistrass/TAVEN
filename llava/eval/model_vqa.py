@@ -13,6 +13,8 @@ from llava.mm_utils import tokenizer_image_token, process_images, get_model_name
 
 from PIL import Image
 import math
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def split_list(lst, n):
@@ -68,18 +70,20 @@ def eval_model(args):
                 top_p=args.top_p,
                 num_beams=args.num_beams,
                 # no_repeat_ngram_size=3,
-                max_new_tokens=1024,
-                use_cache=True)
+                max_new_tokens=512,
+                use_cache=True,
+                enh_para=args.gamma,
+                sup_para=args.beta,
+                vision_weight=args.alpha)
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
         ans_id = shortuuid.uuid()
         ans_file.write(json.dumps({"question_id": idx,
-                                   "prompt": cur_prompt,
+                                   "image_id": image_file,
                                    "text": outputs,
-                                   "answer_id": ans_id,
                                    "model_id": model_name,
-                                   "metadata": {}}) + "\n")
+                                   }) + "\n")
         ans_file.flush()
     ans_file.close()
 
@@ -93,9 +97,12 @@ if __name__ == "__main__":
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--num_beams", type=int, default=1)
+    parser.add_argument("--gamma", type=float, default=0.25)
+    parser.add_argument("--alpha", type=float, default=1.15)
+    parser.add_argument("--beta", type=float, default=0.85)
     args = parser.parse_args()
 
     eval_model(args)

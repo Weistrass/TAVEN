@@ -14,6 +14,8 @@ from torch.utils.data import Dataset, DataLoader
 
 from PIL import Image
 import math
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def split_list(lst, n):
@@ -95,7 +97,7 @@ def eval_model(args):
 
     data_loader = create_data_loader(questions, args.image_folder, tokenizer, image_processor, model.config)
 
-    for (input_ids, image_tensor, image_sizes), line in tqdm(zip(data_loader, questions), total=len(questions)):
+    for index, ((input_ids, image_tensor, image_sizes), line) in tqdm(enumerate(zip(data_loader, questions)), total=len(questions)):
         idx = line["question_id"]
         cur_prompt = line["text"]
 
@@ -107,11 +109,17 @@ def eval_model(args):
                 images=image_tensor.to(dtype=torch.float16, device='cuda', non_blocking=True),
                 image_sizes=image_sizes,
                 do_sample=True if args.temperature > 0 else False,
+                #do_sample=True,
                 temperature=args.temperature,
                 top_p=args.top_p,
+                top_k=args.top_k,
                 num_beams=args.num_beams,
                 max_new_tokens=args.max_new_tokens,
-                use_cache=True)
+                use_cache=True,
+                enh_para=args.gamma,
+                sup_para=args.beta,
+                vision_weight=args.alpha
+                )
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
 
@@ -122,7 +130,7 @@ def eval_model(args):
                                    "answer_id": ans_id,
                                    "model_id": model_name,
                                    "metadata": {}}) + "\n")
-        # ans_file.flush()
+        ans_file.flush()
     ans_file.close()
 
 if __name__ == "__main__":
@@ -135,10 +143,14 @@ if __name__ == "__main__":
     parser.add_argument("--conv-mode", type=str, default="llava_v1")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.2)
-    parser.add_argument("--top_p", type=float, default=None)
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--top_p", type=float, default=0.7)
+    parser.add_argument("--top_k", type=float, default=50)
     parser.add_argument("--num_beams", type=int, default=1)
     parser.add_argument("--max_new_tokens", type=int, default=128)
+    parser.add_argument("--gamma", type=float, default=0.25)
+    parser.add_argument("--alpha", type=float, default=1.15)
+    parser.add_argument("--beta", type=float, default=0.9)
     args = parser.parse_args()
 
     eval_model(args)

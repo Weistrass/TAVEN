@@ -7,7 +7,7 @@ build:
   python_version: "3.11"
 
   python_packages:
-    - "torch==2.0.1"
+    - "torch"
     - "accelerate==0.21.0"
     - "bitsandbytes==0.41.0"
     - "deepspeed==0.9.5"
@@ -24,8 +24,8 @@ build:
     - "shortuuid==1.0.11"
     - "timm==0.6.13"
     - "tokenizers==0.13.3"
-    - "torch==2.0.1"
-    - "torchvision==0.15.2"
+    - "torch"
+    - "torchvision"
     - "transformers==4.31.0"
     - "wandb==0.15.12"
     - "wavedrom==2.0.3.post3"

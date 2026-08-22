@@ -79,6 +79,9 @@ def eval_model(args):
                 temperature=args.temperature,
                 max_new_tokens=1024,
                 use_cache=True,
+                enh_para=args.gamma,
+                sup_para=args.beta,
+                vision_weight=args.alpha,
             )
 
         outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
@@ -106,6 +109,9 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.2)
     parser.add_argument("--answer-prompter", action="store_true")
     parser.add_argument("--single-pred-prompt", action="store_true")
+    parser.add_argument("--gamma", type=float, default=0.25)
+    parser.add_argument("--beta", type=float, default=0.85)
+    parser.add_argument("--alpha", type=float, default=1.15)
     args = parser.parse_args()
 
     eval_model(args)

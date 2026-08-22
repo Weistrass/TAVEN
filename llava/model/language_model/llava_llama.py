@@ -23,15 +23,17 @@ from transformers import AutoConfig, AutoModelForCausalLM, \
 
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.generation.utils import GenerateOutput
-
+from .visualEnhLlama.visionFocus import VisualEnhLlamaModel
 from ..llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
 
 
 class LlavaConfig(LlamaConfig):
     model_type = "llava_llama"
-
-
+# vanilla LLaVA
 class LlavaLlamaModel(LlavaMetaModel, LlamaModel):
+
+# our Method
+#class LlavaLlamaModel(LlavaMetaModel, VisualEnhLlamaModel):
     config_class = LlavaConfig
 
     def __init__(self, config: LlamaConfig):
@@ -107,13 +109,25 @@ class LlavaLlamaForCausalLM(LlamaForCausalLM, LlavaMetaForCausalLM):
         inputs: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
+        enh_para = 1,
+        sup_para = 1,
+        vision_weight = 1,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)
         attention_mask = kwargs.pop("attention_mask", None)
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported")
+        # 添加enh_para属性
+        if images == None:
+            self.model.with_image=False
+        else:
+            self.model.with_image=True
+        self.model.enh_para = enh_para
+        self.model.sup_para = sup_para
 
+        # vit args
+        self.vision_weight = vision_weight
         if images is not None:
             (
                 inputs,

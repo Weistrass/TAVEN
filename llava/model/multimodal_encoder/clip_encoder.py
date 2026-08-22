@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 from transformers import CLIPVisionModel, CLIPImageProcessor, CLIPVisionConfig
-
+import os
 
 class CLIPVisionTower(nn.Module):
     def __init__(self, vision_tower, args, delay_load=False):
@@ -51,10 +51,37 @@ class CLIPVisionTower(nn.Module):
                 image_feature = self.feature_select(image_forward_out).to(image.dtype)
                 image_features.append(image_feature)
         else:
-            image_forward_outs = self.vision_tower(images.to(device=self.device, dtype=self.dtype), output_hidden_states=True)
+            # add output_attentions=True in vision tower
+            image_forward_outs = self.vision_tower(images.to(device=self.device, dtype=self.dtype), output_hidden_states=True, output_attentions=True)
+            
+            ### add my code
+            dominant_num = 576
+            top_vision_weight = self.vision_weight
+            attn_weights  = image_forward_outs.attentions[-2]
+            hidden_states = image_forward_outs.hidden_states[-2]
+
+            # delete cls token
+            hidden_states = hidden_states[:,1:,:]
+
+            cls_idx = 0
+            cls_attention = attn_weights[:, :, cls_idx, cls_idx+1:]  
+            cls_attention_sum = cls_attention.sum(dim=1) #average across all heads
+
+            topk_indices = cls_attention_sum.topk(dominant_num, dim=1).indices
+
+
+            # Differential visual scaling
+            decay_weights = torch.linspace(top_vision_weight, 1.0, steps=dominant_num, dtype=cls_attention_sum.dtype, device=cls_attention_sum.device)  # [576]
+
+            enh_weights = torch.zeros_like(cls_attention_sum)  # [1, 576]
+
+            for b in range(enh_weights.shape[0]):
+                enh_weights[b, topk_indices[b]] = decay_weights
+
+            ### add my code
             image_features = self.feature_select(image_forward_outs).to(images.dtype)
 
-        return image_features
+        return image_features, enh_weights
 
     @property
     def dummy_feature(self):

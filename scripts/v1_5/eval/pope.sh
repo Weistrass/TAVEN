@@ -1,14 +1,17 @@
 #!/bin/bash
-
-python -m llava.eval.model_vqa_loader \
-    --model-path liuhaotian/llava-v1.5-13b \
-    --question-file ./playground/data/eval/pope/llava_pope_test.jsonl \
-    --image-folder ./playground/data/eval/pope/val2014 \
-    --answers-file ./playground/data/eval/pope/answers/llava-v1.5-13b.jsonl \
+# coco dataset
+/mnt/home/zttian/WenwangHuang/envs/llava/bin/python -m llava.eval.model_vqa_loader \
+    --model-path ./checkpoints/llava-v1.6-vicuna-7b \
+    --question-file ./playground/data/eval/pope/llava_pope_test_new.jsonl \
+    --image-folder /mnt/home/zttian/WenwangHuang/Datasets/mscoco/val2014 \
+    --answers-file ./playground/data/eval/pope/answers/llava-v1.6-7b-greedy.jsonl \
     --temperature 0 \
-    --conv-mode vicuna_v1
+    --conv-mode vicuna_v1 \
+    --gamma 0.25 \
+    --alpha 1.15 \
+    --beta 0.9
 
-python llava/eval/eval_pope.py \
+/mnt/home/zttian/WenwangHuang/envs/llava/bin/python llava/eval/eval_pope.py \
     --annotation-dir ./playground/data/eval/pope/coco \
-    --question-file ./playground/data/eval/pope/llava_pope_test.jsonl \
-    --result-file ./playground/data/eval/pope/answers/llava-v1.5-13b.jsonl
+    --question-file ./playground/data/eval/pope/llava_pope_test_new.jsonl \
+    --result-file ./playground/data/eval/pope/answers/llava-v1.6-7b-greedy.jsonl

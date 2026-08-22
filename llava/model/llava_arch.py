@@ -138,15 +138,16 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
-        image_features = self.get_model().get_vision_tower()(images)
+        image_features, enh_weights = self.get_model().get_vision_tower()(images)
         image_features = self.get_model().mm_projector(image_features)
-        return image_features
+        return image_features, enh_weights
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
         images, image_sizes=None
     ):
         vision_tower = self.get_vision_tower()
+        vision_tower.vision_weight = self.vision_weight
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
@@ -154,14 +155,18 @@ class LlavaMetaForCausalLM(ABC):
             if type(images) is list:
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
             concat_images = torch.cat([image for image in images], dim=0)
-            image_features = self.encode_images(concat_images)
+            image_features, enh_weights = self.encode_images(concat_images)
             split_sizes = [image.shape[0] for image in images]
             image_features = torch.split(image_features, split_sizes, dim=0)
             mm_patch_merge_type = getattr(self.config, 'mm_patch_merge_type', 'flat')
             image_aspect_ratio = getattr(self.config, 'image_aspect_ratio', 'square')
             if mm_patch_merge_type == 'flat':
                 image_features = [x.flatten(0, 1) for x in image_features]
+                #print(f"enh_weights:{enh_weights.shape}")
+                enh_weights_flat = enh_weights.flatten()
+                self.model.enh_weights = enh_weights_flat
             elif mm_patch_merge_type.startswith('spatial'):
+                #print("spatial")
                 new_image_features = []
                 for image_idx, image_feature in enumerate(image_features):
                     if image_feature.shape[0] > 1:
@@ -182,6 +187,10 @@ class LlavaMetaForCausalLM(ABC):
                                 image_feature,
                                 self.model.image_newline[:, None, None].expand(*image_feature.shape[:-1], 1).to(image_feature.device)
                             ), dim=-1)
+                            # !custom add code for recoding patch image feat size
+                            self.patch_image_feat_size=image_feature.shape[1:]
+                            # !custom add code for recoding patch image feat size
+
                             image_feature = image_feature.flatten(1, 2).transpose(0, 1)
                         else:
                             image_feature = image_feature.permute(0, 2, 1, 3, 4).contiguous()
@@ -199,7 +208,8 @@ class LlavaMetaForCausalLM(ABC):
             else:
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
-            image_features = self.encode_images(images)
+            image_features, enh_weights = self.encode_images(images)
+            self.model.enh_weights = enh_weights[0]
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, 'tune_mm_mlp_adapter', False) and getattr(self.config, 'mm_use_im_start_end', False):
@@ -212,6 +222,7 @@ class LlavaMetaForCausalLM(ABC):
         _labels = labels
         _position_ids = position_ids
         _attention_mask = attention_mask
+        VisualTokenLen = image_features[0].shape[0]
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
         else:
@@ -261,7 +272,11 @@ class LlavaMetaForCausalLM(ABC):
                     cur_image_idx += 1
                     cur_new_input_embeds.append(cur_image_features)
                     cur_new_labels.append(torch.full((cur_image_features.shape[0],), IGNORE_INDEX, device=cur_labels.device, dtype=cur_labels.dtype))
-
+            # custom add code for recoding image token idx
+            text_image_split_sizes = [x.shape[0] for x in cur_new_input_embeds]
+            self.text_image_split_sizes = text_image_split_sizes
+            self.model.text_image_split_sizes=text_image_split_sizes 
+            # custom add my code
             cur_new_input_embeds = [x.to(self.device) for x in cur_new_input_embeds]
 
             cur_new_input_embeds = torch.cat(cur_new_input_embeds)
@@ -320,6 +335,7 @@ class LlavaMetaForCausalLM(ABC):
 
         if _position_ids is None:
             position_ids = None
+        #print(new_input_embeds.shape())
 
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
 

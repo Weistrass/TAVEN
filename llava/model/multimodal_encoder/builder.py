@@ -13,3 +13,4 @@ def build_vision_tower(vision_tower_cfg, **kwargs):
             return CLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
 
     raise ValueError(f'Unknown vision tower: {vision_tower}')
+

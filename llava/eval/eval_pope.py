@@ -72,9 +72,21 @@ if __name__ == "__main__":
     questions = {question['question_id']: question for question in questions}
     answers = [json.loads(q) for q in open(args.result_file)]
     for file in os.listdir(args.annotation_dir):
-        assert file.startswith('coco_pope_')
-        assert file.endswith('.json')
-        category = file[10:-5]
+        # assert file.startswith('coco_pope_')
+        # assert file.endswith('.json')
+        # category = file[10:-5]
+
+        ### mycode，适配cooc,aokvqa, gqa三种不同版本的POPE测试。
+        if not file.endswith('.json') or '_pope_' not in file:
+            continue
+
+        # 例如 "coco_pope_random.json" -> dataset = "coco", category = "random"
+        parts = file[:-5].split('_pope_')  # 移除 .json 后 split
+        dataset, category = parts[0], parts[1]
+        #if category == 'random':
+        print(f"Processing file: {file} | Dataset: {dataset} | Category: {category}")
+        ### mycode
+
         cur_answers = [x for x in answers if questions[x['question_id']]['category'] == category]
         print('Category: {}, # samples: {}'.format(category, len(cur_answers)))
         eval_pope(cur_answers, os.path.join(args.annotation_dir, file))
